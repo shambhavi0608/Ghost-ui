@@ -9,35 +9,55 @@ import {
   ShieldCheck, Cpu, Fingerprint, AlertTriangle, Lock, Unlock, RefreshCw, Terminal, 
   Activity, Video, Upload, Shield, Check, ChevronRight, ShieldAlert, Wifi, Layers
 } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, animate } from "motion/react";
 
 import Header from "./components/Header";
 import GetStartedWizard from "./components/GetStartedWizard";
+
+// Official FastAPI Threat JSON payload model from the backend team
+const THREAT_DATA = {
+  status: "success",
+  analysis: {
+    ghost_score: 75,
+    risk_level: "CRITICAL",
+    biggest_risk: "Heavy tracker activity detected",
+    all_risks: [
+      "Heavy tracker activity detected",
+      "Multiple sensitive permissions granted",
+      "Uploaded image contains traceable metadata"
+    ]
+  },
+  identity_matches: [
+    { platform: "AdTracker Nexus", consent: false, risk_level: "HIGH" },
+    { platform: "Behavior Analytics Grid", consent: false, risk_level: "HIGH" }
+  ],
+  image_analysis: {
+    metadata: { format: "JPEG", size: [450, 600], mode: "RGB" },
+    exif_found: true,
+    traceability_risk: "HIGH",
+    exif_preview: ["ExifOffset", "Orientation", "SubsecTimeOriginal", "DateTimeOriginal"]
+  },
+  privacy: {
+    cleanup_status: "completed",
+    message: "All uploaded data processed in-memory and destroyed after analysis."
+  }
+};
 
 // Custom dynamic semi-circular orange threat gauge component matching the engineering checklist
 function ThreatScoreGauge({ score }: { score: number }) {
   const [displayValue, setDisplayValue] = useState(0);
 
   useEffect(() => {
-    let startVal = displayValue;
-    const endVal = score;
-    const duration = 1500; // 1.5 seconds smooth tracking
-    const startTime = performance.now();
+    // Animates smoothly from 0% to the target score when the component mounts
+    const controls = animate(0, score, {
+      duration: 1.5,
+      ease: "easeOut", // smooth quadratic ease-out
+      onUpdate: (latest) => {
+        setDisplayValue(Math.round(latest));
+      },
+    });
 
-    function animate(currentTime: number) {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      
-      const easedProgress = progress * (2 - progress); // Ease out quad
-      const currentVal = Math.round(startVal + easedProgress * (endVal - startVal));
-      setDisplayValue(currentVal);
-
-      if (progress < 1) {
-        requestAnimationFrame(animate);
-      }
-    }
-
-    requestAnimationFrame(animate);
+    return () => controls.stop();
   }, [score]);
 
   // Semicircle gauge maps displayValue (0% to 100%) to rotation angle (-90deg to +90deg)
@@ -48,99 +68,102 @@ function ThreatScoreGauge({ score }: { score: number }) {
       <div className="absolute inset-0 bg-radial-gradient from-orange-500/5 to-transparent pointer-events-none rounded-3xl" />
       <div className="text-[10px] font-mono tracking-widest text-zinc-500 uppercase font-bold">Threat Urgency Level</div>
       
-      <div className="relative w-52 h-28 mt-4 select-none flex justify-center items-end">
-        <svg viewBox="0 0 200 110" className="w-full h-full overflow-visible">
-          <defs>
-            <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#f97316" stopOpacity="0.4" />
-              <stop offset="50%" stopColor="#f97316" stopOpacity="0.1" />
-              <stop offset="100%" stopColor="#ef4444" stopOpacity="0.8" />
-            </linearGradient>
-            <linearGradient id="activeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#ea580c" />
-              <stop offset="60%" stopColor="#f97316" />
-              <stop offset="100%" stopColor="#ef4444" />
-            </linearGradient>
-            <filter id="needleShadow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#f97316" floodOpacity="0.5" />
-            </filter>
-          </defs>
+      <div className="relative w-52 mt-4 select-none flex flex-col items-center">
+        {/* Semicircular Gauge Vector Graphic */}
+        <div className="relative w-52 h-28">
+          <svg viewBox="0 0 200 110" className="w-full h-full overflow-visible">
+            <defs>
+              <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#f97316" stopOpacity="0.4" />
+                <stop offset="50%" stopColor="#f97316" stopOpacity="0.1" />
+                <stop offset="100%" stopColor="#ef4444" stopOpacity="0.8" />
+              </linearGradient>
+              <linearGradient id="activeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#ea580c" />
+                <stop offset="60%" stopColor="#f97316" />
+                <stop offset="100%" stopColor="#ef4444" />
+              </linearGradient>
+              <filter id="needleShadow" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#f97316" floodOpacity="0.5" />
+              </filter>
+            </defs>
 
-          {/* Semicircular Backing Track */}
-          <path
-            d="M 20 100 A 80 80 0 0 1 180 100"
-            fill="none"
-            stroke="#121214"
-            strokeWidth="16"
-            strokeLinecap="round"
-          />
-
-          <path
-            d="M 20 100 A 80 80 0 0 1 180 100"
-            fill="none"
-            stroke="url(#gaugeGradient)"
-            strokeWidth="16"
-            strokeLinecap="round"
-            className="opacity-60"
-          />
-
-          {/* Active threat level arc */}
-          <path
-            d="M 20 100 A 80 80 0 0 1 180 100"
-            fill="none"
-            stroke="url(#activeGradient)"
-            strokeWidth="18"
-            strokeLinecap="round"
-            strokeDasharray="251.3"
-            strokeDashoffset={251.3 - (251.3 * (displayValue / 100))}
-            className="transition-all duration-300 ease-out"
-          />
-
-          {/* Dividers */}
-          {[36, 72, 108, 144].map((deg) => {
-            const rad = (Math.PI * deg) / 180;
-            const x1 = 100 - 90 * Math.cos(rad);
-            const y1 = 100 - 90 * Math.sin(rad);
-            const x2 = 100 - 70 * Math.cos(rad);
-            const y2 = 100 - 70 * Math.sin(rad);
-            return (
-              <line
-                key={deg}
-                x1={x1}
-                y1={y1}
-                x2={x2}
-                y2={y2}
-                stroke="#09090b"
-                strokeWidth="3.5"
-              />
-            );
-          })}
-
-          {/* Center Pivot Point */}
-          <circle cx="100" cy="100" r="10" fill="#09090b" stroke="#27272a" strokeWidth="2.5" />
-          <circle cx="100" cy="100" r="4.5" fill="#f97316" className="animate-pulse" />
-
-          {/* Needle Pointer */}
-          <g transform={`rotate(${angle} 100 100)`}>
-            <polygon
-              points="97.5,100 102.5,100 101,24 99,24"
-              fill="#f97316"
-              filter="url(#needleShadow)"
+            {/* Semicircular Backing Track */}
+            <path
+              d="M 20 100 A 80 80 0 0 1 180 100"
+              fill="none"
+              stroke="#121214"
+              strokeWidth="16"
+              strokeLinecap="round"
             />
-            <circle cx="100" cy="24" r="2.5" fill="#ffffff" />
-          </g>
-        </svg>
 
-        <div className="absolute bottom-1 font-mono text-center flex flex-col justify-center items-center">
-          <div className="text-3xl font-black text-orange-500 tracking-tighter drop-shadow-[0_0_8px_rgba(249,115,22,0.45)]">
+            <path
+              d="M 20 100 A 80 80 0 0 1 180 100"
+              fill="none"
+              stroke="url(#gaugeGradient)"
+              strokeWidth="16"
+              strokeLinecap="round"
+              className="opacity-60"
+            />
+
+            {/* Active threat level arc */}
+            <path
+              d="M 20 100 A 80 80 0 0 1 180 100"
+              fill="none"
+              stroke="url(#activeGradient)"
+              strokeWidth="18"
+              strokeLinecap="round"
+              strokeDasharray="251.3"
+              strokeDashoffset={251.3 - (251.3 * (displayValue / 100))}
+            />
+
+            {/* Dividers */}
+            {[36, 72, 108, 144].map((deg) => {
+              const rad = (Math.PI * deg) / 180;
+              const x1 = 100 - 90 * Math.cos(rad);
+              const y1 = 100 - 90 * Math.sin(rad);
+              const x2 = 100 - 70 * Math.cos(rad);
+              const y2 = 100 - 70 * Math.sin(rad);
+              return (
+                <line
+                  key={deg}
+                  x1={x1}
+                  y1={y1}
+                  x2={x2}
+                  y2={y2}
+                  stroke="#09090b"
+                  strokeWidth="3.5"
+                />
+              );
+            })}
+
+            {/* Center Pivot Point */}
+            <circle cx="100" cy="100" r="10" fill="#09090b" stroke="#27272a" strokeWidth="2.5" />
+            <circle cx="100" cy="100" r="4.5" fill="#f97316" className="animate-pulse" />
+
+            {/* Needle Pointer */}
+            <g transform={`rotate(${angle} 100 100)`}>
+              <polygon
+                points="97.5,100 102.5,100 101,24 99,24"
+                fill="#f97316"
+                filter="url(#needleShadow)"
+              />
+              <circle cx="100" cy="24" r="2.5" fill="#ffffff" />
+            </g>
+          </svg>
+        </div>
+
+        {/* Dynamic Threat Score content container placed below with spacious vertical spacing */}
+        <div className="mt-4 flex flex-col justify-center items-center w-full min-h-[70px]">
+          <div className="text-3xl font-black text-orange-500 tracking-tighter drop-shadow-[0_0_8px_rgba(249,115,22,0.45)] font-mono">
             {displayValue}%
           </div>
-          <div className={`text-[9px] font-bold uppercase tracking-widest mt-0.5 px-2.5 py-0.5 rounded ${
+          <div className={`text-[10px] font-bold uppercase tracking-widest mt-3 px-3 py-1.5 rounded-lg border transition-all duration-300 ${
             displayValue >= 70 
-              ? "text-red-500 bg-red-950/40 border border-red-900/30" 
+              ? "text-red-400 bg-red-950/45 border-red-500/30 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.15)]" 
               : displayValue >= 45 
-              ? "text-orange-400 bg-orange-950/40 border border-orange-900/30" 
-              : "text-emerald-400 bg-emerald-950/40 border border-emerald-900/30"
+              ? "text-orange-400 bg-orange-950/40 border-orange-500/20" 
+              : "text-emerald-400 bg-emerald-950/40 border-emerald-500/30"
           }`}>
             {displayValue >= 70 
               ? "CRITICAL THREAT" 
@@ -196,6 +219,14 @@ export default function App() {
     webRTC: false,
     dnsOverHttps: false,
   });
+
+  const baseScore = THREAT_DATA.analysis.ghost_score;
+  const canvasReduction = shieldToggles.canvas ? 20 : 0;
+  const userAgentReduction = shieldToggles.userAgent ? 15 : 0;
+  const webRTCReduction = shieldToggles.webRTC ? 20 : 0;
+  const dnsReduction = shieldToggles.dnsOverHttps ? 15 : 0;
+  const currentThreatScore = Math.max(5, baseScore - canvasReduction - userAgentReduction - webRTCReduction - dnsReduction);
+
   const [isShieldApplied, setIsShieldApplied] = useState(false);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
@@ -497,7 +528,7 @@ export default function App() {
                   transition={{ duration: 0.5 }}
                   className="space-y-6 w-full"
                 >
-                  <div className="flex flex-col items-center justify-center text-center gap-6 border-b border-zinc-900/60 pb-6">
+                  <div className="flex flex-col items-center justify-center text-center gap-4 border-b border-zinc-900/60 pb-6">
                     <div className="space-y-1.5 flex flex-col items-center">
                       <span className="font-mono text-[10px] uppercase tracking-widest text-[#f97316] bg-[#f97316]/10 border border-[#f97316]/20 px-3 py-1 rounded-full font-bold shadow-[0_0_12px_rgba(249,115,22,0.1)]">
                         PRIVACY DECRYPTION COMPLETE
@@ -508,167 +539,138 @@ export default function App() {
                     </div>
                     
                     {/* Dynamic semi-circular orange threat score gauge is prominently centered at the top of Screen 3! */}
-                    <ThreatScoreGauge score={100 - (18 + (shieldToggles.canvas ? 20 : 0) + (shieldToggles.userAgent ? 22 : 0) + (shieldToggles.webRTC ? 21 : 0) + (shieldToggles.dnsOverHttps ? 15 : 0))} />
+                    <ThreatScoreGauge score={currentThreatScore} />
+
+                    {/* High-visibility pulsing red threat indicator badge mapping "risk_level" */}
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-red-950/40 border border-red-500/40 rounded-full animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.2)] mt-1">
+                      <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
+                      <span className="text-red-400 font-mono text-xs font-black tracking-widest uppercase">
+                        {currentThreatScore > 35 ? THREAT_DATA.analysis.risk_level : "SHIELDED"}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Modern 4-pillar result grid cards - completely responsive-first, equal height */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
+                  {/* Modern grid cards - completely responsive-first, equal height */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
                     
-                    {/* Card 1: Trackers Blocked */}
-                    <div className="bg-zinc-950/60 border border-zinc-900 rounded-2xl p-5 text-left flex flex-col justify-between space-y-4 shadow-md transition-all hover:border-orange-500/10 hover:shadow-lg">
+                    {/* Card 1: Your Biggest Risk Right Now */}
+                    <div className="bg-zinc-950/60 border border-red-500/20 rounded-2xl p-6 text-left flex flex-col justify-between space-y-4 shadow-md transition-all hover:border-red-500/35 hover:shadow-lg relative overflow-hidden group">
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-red-400 font-mono text-[10px] uppercase font-bold border-b border-zinc-900 pb-2">
+                          <ShieldAlert className="w-4 h-4 text-red-500 animate-pulse" />
+                          <span>Your Biggest Risk Right Now</span>
+                        </div>
+                        <div className="space-y-1.5">
+                          <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">Primary Threat Block</div>
+                          <div className="text-lg font-black text-white font-sans leading-snug">
+                            {THREAT_DATA.analysis.biggest_risk}
+                          </div>
+                        </div>
+                        <div className="space-y-2 pt-2">
+                          <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">Detected Vulnerability Log</div>
+                          <ul className="space-y-1.5">
+                            {THREAT_DATA.analysis.all_risks.map((risk, idx) => (
+                              <li key={idx} className="flex items-start gap-2 text-xs text-zinc-400 leading-relaxed font-sans">
+                                <span className="text-red-500 font-bold shrink-0 mt-0.5">•</span>
+                                <span>{risk}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                      <div className="pt-2 border-t border-zinc-900/60 mt-auto">
+                        <span className="inline-block text-[10px] font-mono font-bold text-red-400 bg-red-950/20 px-2.5 py-1 rounded border border-red-900/30">
+                          EXTERNAL VULNERABILITIES FOUND
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Card 2: Identity Leak Target Nodes */}
+                    <div className="bg-zinc-950/60 border border-zinc-900 rounded-2xl p-6 text-left flex flex-col justify-between space-y-4 shadow-md transition-all hover:border-orange-500/10 hover:shadow-lg relative overflow-hidden">
                       <div className="space-y-3">
                         <div className="flex items-center gap-2 text-zinc-400 font-mono text-[10px] uppercase font-bold border-b border-zinc-900 pb-2">
                           <Activity className="w-4 h-4 text-orange-500" />
-                          <span>Trackers Blocked</span>
+                          <span>Identity Leak Target Nodes (Access Without Consent)</span>
                         </div>
-                        <div className="space-y-1">
-                          <div className="text-2xl font-black text-white font-sans">48 Scripts</div>
-                          <div className="text-[10px] font-mono text-zinc-500">QUARANTINED ALERTS</div>
-                        </div>
-                        <div className="space-y-1.5 font-mono text-[11px] text-zinc-400">
-                          <div className="flex justify-between">
-                            <span className="text-zinc-600">doubleclick.net:</span>
-                            <span className="text-red-400 font-semibold uppercase">Blocked</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-zinc-600">hotjar.io:</span>
-                            <span className="text-red-400 font-semibold uppercase">Blocked</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-zinc-600">facebook.com/tr:</span>
-                            <span className="text-red-400 font-semibold uppercase">Blocked</span>
-                          </div>
+                        <div className="space-y-3 pt-1">
+                          {THREAT_DATA.identity_matches.map((match, idx) => (
+                            <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-black/45 border border-zinc-900/70 gap-2 hover:border-zinc-800 transition-colors">
+                              <div className="flex items-center gap-2">
+                                <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping shrink-0" />
+                                <span className="text-xs font-bold text-zinc-200 font-mono tracking-tight">{match.platform}</span>
+                              </div>
+                              <div className="flex items-center gap-2 self-start sm:self-auto">
+                                <span className="text-[10px] font-mono font-extrabold px-2.5 py-1 bg-red-950/70 border border-red-500/40 text-red-400 rounded-lg uppercase shadow-[0_0_8px_rgba(239,68,68,0.2)]">
+                                  Consent: False
+                                </span>
+                                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 bg-orange-950/30 border border-orange-900/30 text-orange-400 rounded">
+                                  {match.risk_level} Risk
+                                </span>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                      <div className="pt-2">
-                        <span className="inline-block text-[10px] font-mono font-bold text-emerald-400 bg-emerald-950/20 px-2 py-0.5 rounded border border-emerald-900/30">
-                          SHIELD ACTIVE
+                      <div className="pt-2 border-t border-zinc-900/60 mt-auto">
+                        <span className="inline-block text-[10px] font-mono font-bold text-orange-400 bg-orange-950/20 px-2.5 py-1 rounded border border-orange-900/30">
+                          ACCESS BLOCKED
                         </span>
                       </div>
                     </div>
 
-                    {/* Card 2: Canvas Fingerprint Entropy */}
-                    <div className="bg-zinc-950/60 border border-zinc-900 rounded-2xl p-5 text-left flex flex-col justify-between space-y-4 shadow-md transition-all hover:border-orange-500/10 hover:shadow-lg">
-                      <div className="space-y-3">
+                    {/* Card 3: EXIF Metadata Preview Grid */}
+                    <div className="bg-zinc-950/60 border border-zinc-900 rounded-2xl p-6 text-left flex flex-col justify-between space-y-4 shadow-md transition-all hover:border-cyan-500/10 hover:shadow-lg relative overflow-hidden col-span-1 md:col-span-2">
+                      <div className="space-y-3 w-full">
                         <div className="flex items-center gap-2 text-zinc-400 font-mono text-[10px] uppercase font-bold border-b border-zinc-900 pb-2">
-                          <Fingerprint className="w-4 h-4 text-orange-500" />
-                          <span>Canvas Entropy</span>
+                          <Cpu className="w-4 h-4 text-cyan-400" />
+                          <span>EXIF Metadata Preview (Image Analysis)</span>
                         </div>
-                        <div className="space-y-1">
-                          <div className="text-2xl font-black text-white font-sans tracking-tight">0x7FB904C</div>
-                          <div className="text-[10px] font-mono text-zinc-500">WEBGL HARDWARE HASH</div>
-                        </div>
-                        <div className="space-y-1.5 font-mono text-[11px] text-zinc-400">
-                          <div className="flex justify-between">
-                            <span className="text-zinc-600">Entropy Level:</span>
-                            <span className={shieldToggles.canvas ? "text-emerald-400 font-semibold" : "text-amber-500 font-semibold"}>
-                              {shieldToggles.canvas ? "24.5 bits (Safe)" : "2.4 bits (Vulnerable)"}
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="p-3 bg-black/40 rounded-xl border border-zinc-900/80 flex flex-col justify-center">
+                            <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider block">Image Format</span>
+                            <span className="text-xs font-bold text-zinc-350 mt-1">{THREAT_DATA.image_analysis.metadata.format}</span>
+                          </div>
+                          <div className="p-3 bg-black/40 rounded-xl border border-zinc-900/80 flex flex-col justify-center font-sans">
+                            <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider block">Real Dimension Parameters</span>
+                            <span className="text-xs font-bold text-zinc-350 mt-1">
+                              {THREAT_DATA.image_analysis.metadata.size[0]} x {THREAT_DATA.image_analysis.metadata.size[1]} ({THREAT_DATA.image_analysis.metadata.mode})
                             </span>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-zinc-600">Identity Sig:</span>
-                            <span className={shieldToggles.canvas ? "text-emerald-400" : "text-red-400"}>
-                              {shieldToggles.canvas ? "Spoofed Noise" : "Exposed"}
+                          <div className="p-3 bg-red-950/25 rounded-xl border border-red-500/30 flex flex-col justify-center font-sans shadow-[0_0_12px_rgba(239,68,68,0.15)] hover:border-red-500/50 transition-colors">
+                            <span className="text-[9px] font-mono text-red-400 uppercase tracking-wider block font-bold">Traceability Risk</span>
+                            <span className="text-xs font-extrabold text-red-400 mt-1 flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                              Image Risk: HIGH
                             </span>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-zinc-600">Proxy Rotation:</span>
-                            <span className="text-zinc-500">Active</span>
-                          </div>
                         </div>
-                      </div>
-                      <div className="pt-2">
-                        <span className={`inline-block text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
-                          shieldToggles.canvas 
-                            ? "text-emerald-400 bg-emerald-950/20 border-emerald-900/30" 
-                            : "text-red-400 bg-red-950/20 border-red-900/30"
-                        }`}>
-                          {shieldToggles.canvas ? "RANDOMIZED" : "ATTACK RISK"}
-                        </span>
-                      </div>
-                    </div>
 
-                    {/* Card 3: Browser Permissions Status */}
-                    <div className="bg-zinc-950/60 border border-zinc-900 rounded-2xl p-5 text-left flex flex-col justify-between space-y-4 shadow-md transition-all hover:border-orange-500/10 hover:shadow-lg">
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-zinc-400 font-mono text-[10px] uppercase font-bold border-b border-zinc-900 pb-2">
-                          <Cpu className="w-4 h-4 text-orange-500" />
-                          <span>Permissions Status</span>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-2xl font-black text-white font-sans">4 Signals</div>
-                          <div className="text-[10px] font-mono text-zinc-500">API DEVICE SIGNALS</div>
-                        </div>
-                        <div className="space-y-1.5 font-mono text-[11px] text-zinc-400">
-                          <div className="flex justify-between">
-                            <span className="text-zinc-600">WebRTC Leak:</span>
-                            <span className={shieldToggles.webRTC ? "text-emerald-400" : "text-red-400"}>
-                              {shieldToggles.webRTC ? "Sandboxed" : "Exposed IP"}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-zinc-600">Camera / Mic:</span>
-                            <span className="text-emerald-400">Restricted</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-zinc-600">Geo Tracking:</span>
-                            <span className="text-emerald-400">Masked</span>
+                        <div className="pt-2">
+                          <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest block mb-2 font-semibold">Exif data preview hash identifiers</span>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-[10.5px]">
+                            {THREAT_DATA.image_analysis.exif_preview.map((tag, idx) => (
+                              <div key={idx} className="bg-zinc-900/30 px-3 py-2 rounded-lg border border-zinc-900 text-center text-zinc-400 font-mono hover:text-[#00f5d4] hover:border-[#00f5d4]/20 transition-all">
+                                #{tag}
+                              </div>
+                            ))}
                           </div>
                         </div>
-                      </div>
-                      <div className="pt-2">
-                        <span className={`inline-block text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
-                          shieldToggles.webRTC 
-                            ? "text-emerald-400 bg-emerald-950/20 border-emerald-900/30" 
-                            : "text-amber-400 bg-amber-950/20 border-amber-900/30"
-                        }`}>
-                          {shieldToggles.webRTC ? "SILENTLY CONTAINED" : "SIGNALS DETECTABLE"}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Card 4: Data Breaches Identified */}
-                    <div className="bg-zinc-950/60 border border-zinc-900 rounded-2xl p-5 text-left flex flex-col justify-between space-y-4 shadow-md transition-all hover:border-orange-500/10 hover:shadow-lg">
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-zinc-400 font-mono text-[10px] uppercase font-bold border-b border-zinc-900 pb-2">
-                          <ShieldAlert className="w-4 h-4 text-orange-500" />
-                          <span>Breaches Found</span>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-2xl font-black text-white font-sans">0 Alerts</div>
-                          <div className="text-[10px] font-mono text-zinc-500">INTEGRITY REGISTRY</div>
-                        </div>
-                        <div className="space-y-1.5 font-mono text-[11px] text-zinc-400">
-                          <div className="flex justify-between">
-                            <span className="text-zinc-600">Identity Leaks:</span>
-                            <span className="text-emerald-400 font-semibold">None Found</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-zinc-600">DNS Trail Leak:</span>
-                            <span className={shieldToggles.dnsOverHttps ? "text-emerald-400" : "text-amber-500 font-semibold"}>
-                              {shieldToggles.dnsOverHttps ? "None (DoH)" : "High Risk"}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-zinc-600">ISP Data Log:</span>
-                            <span className={shieldToggles.dnsOverHttps ? "text-emerald-400" : "text-red-400"}>
-                              {shieldToggles.dnsOverHttps ? "Encrypted" : "Exposed"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="pt-2">
-                        <span className={`inline-block text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
-                          shieldToggles.dnsOverHttps 
-                            ? "text-emerald-400 bg-emerald-950/20 border-emerald-900/30" 
-                            : "text-red-400 bg-red-950/20 border-red-900/30"
-                        }`}>
-                          {shieldToggles.dnsOverHttps ? "THREAT MINIMAL" : "LOGS DETECTED"}
-                        </span>
                       </div>
                     </div>
 
                   </div>
+
+                  {/* Volatile Green Memory Cleanup Notification Banner */}
+                  {THREAT_DATA.privacy.cleanup_status === "completed" && (
+                    <div className="w-full bg-emerald-950/20 border border-emerald-500/30 text-emerald-400 font-mono text-[11px] p-4 rounded-2xl flex items-start gap-3 mt-4 leading-relaxed shadow-[0_4px_16px_rgba(16,185,129,0.1)]">
+                      <span className="text-sm shrink-0 leading-none">✓</span>
+                      <div>
+                        <span className="font-bold text-emerald-300">Cleanup Status: Completed</span> — {THREAT_DATA.privacy.message}
+                      </div>
+                    </div>
+                  )}
+
                 </motion.div>
               )}
             </AnimatePresence>
@@ -887,7 +889,7 @@ export default function App() {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ duration: 0.5 }}
-                  className="w-full max-w-sm min-h-[490px] h-auto rounded-2xl border border-zinc-900 bg-zinc-950/65 backdrop-blur-md p-6 flex flex-col justify-between shadow-2xl relative overflow-hidden"
+                  className="w-full max-w-sm min-h-[490px] h-auto rounded-2xl border border-zinc-900 bg-zinc-950/65 backdrop-blur-md p-6 flex flex-col justify-between shadow-2xl relative overflow-visible"
                 >
                   <div className="space-y-4">
                     <div className="border-b border-zinc-900 pb-3 flex items-center justify-between">
